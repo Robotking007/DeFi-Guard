@@ -61,6 +61,13 @@ class Settings(BaseSettings):
     AIRFLOW_USERNAME: str = "admin"
     AIRFLOW_PASSWORD: str = "admin"
 
+    # Google Gemini & GCP Project Credentials
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
+    GCP_PROJECT_NAME: str = "projects/507081010383"
+    GCP_PROJECT_NUMBER: str = "507081010383"
+    GEMINI_APP_NAME: str = "DeFi Guard"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
