@@ -784,3 +784,73 @@ export async function fetchDukeProtocolsStudy(): Promise<DukeProtocolStudy[]> {
   if (!res.ok) throw new Error("Failed to load Duke protocols study.");
   return res.json();
 }
+
+// ----------------- SMART CONTRACT SECURITY SCANNER (MODULE 7) -----------------
+
+export interface PresetContract {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  code: string;
+}
+
+export interface SecurityFinding {
+  id?: string;
+  detector: string;
+  severity: "high" | "medium" | "low" | "informational";
+  line_number?: number;
+  description: string;
+  recommendation?: string;
+}
+
+export interface SecurityScanResponse {
+  scan_id: string;
+  contract_name: string;
+  source_hash: string;
+  security_score: number;
+  score_grade: string;
+  is_safe_to_deploy: boolean;
+  summary: string;
+  findings_count: {
+    high: number;
+    medium: number;
+    low: number;
+    informational: number;
+  };
+  findings: SecurityFinding[];
+  scanned_at: string;
+  slither_version: string;
+  solc_version: string;
+}
+
+export async function fetchContractPresets(): Promise<PresetContract[]> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/security/presets`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load contract presets.");
+  return res.json();
+}
+
+export async function runContractScan(payload: {
+  contract_name: string;
+  source_code: string;
+  compiler_version?: string;
+}): Promise<SecurityScanResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/security/scan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Contract security scan failed.");
+  }
+  return res.json();
+}
