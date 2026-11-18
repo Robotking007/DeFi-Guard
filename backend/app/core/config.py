@@ -1,4 +1,4 @@
-from typing import List, Union, Optional
+from typing import List, Union
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -39,6 +39,11 @@ class Settings(BaseSettings):
     ETHERSCAN_API_KEY: str = ""
     COINGECKO_API_KEY: str = ""
     ALCHEMY_API_KEY: str = ""
+
+    # Web3Auth Credentials
+    WEB3AUTH_CLIENT_ID: str = ""
+    WEB3AUTH_CLIENT_SECRET: str = ""
+    WEB3AUTH_JWKS_ENDPOINT: str = "https://api-auth.web3auth.io/.well-known/jwks.json"
 
     # Web3 / Blockchain config
     EVM_CHAIN_ID: int = 11155111  # Sepolia Testnet

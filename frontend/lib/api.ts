@@ -115,6 +115,59 @@ export async function registerUser(
   return res.json();
 }
 
+export async function getSiweNonce(): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/auth/nonce`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to generate challenge nonce.");
+  const data = await res.json();
+  return data.nonce;
+}
+
+export async function verifySiwe(
+  address: string,
+  message: string,
+  signature: string
+): Promise<AuthToken> {
+  const res = await fetch(`${API_BASE_URL}/auth/siwe/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ address, message, signature }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "SIWE verification failed.");
+  }
+  const data: AuthToken = await res.json();
+  setStoredToken(data.access_token);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("defiguard_role", data.role);
+    localStorage.setItem("defiguard_email", data.email);
+  }
+  return data;
+}
+
+export async function loginWeb3Auth(
+  public_address: string,
+  email?: string,
+  id_token?: string
+): Promise<AuthToken> {
+  const res = await fetch(`${API_BASE_URL}/auth/web3auth`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ public_address, email, id_token }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Web3Auth login failed.");
+  }
+  const data: AuthToken = await res.json();
+  setStoredToken(data.access_token);
+  if (typeof window !== "undefined") {
+    localStorage.setItem("defiguard_role", data.role);
+    localStorage.setItem("defiguard_email", data.email);
+  }
+  return data;
+}
+
 export async function fetchMe(): Promise<UserProfile> {
   const token = getStoredToken();
   const res = await fetch(`${API_BASE_URL}/users/me`, {

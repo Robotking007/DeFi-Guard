@@ -2,8 +2,28 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ShieldCheck, Lock, Mail, UserCheck, ArrowRight, Sparkles } from "lucide-react";
-import { loginUser, registerUser } from "@/lib/api";
+import {
+  ShieldCheck,
+  Lock,
+  Mail,
+  ArrowRight,
+  Wallet as WalletIcon,
+  Sparkles,
+  CheckCircle2,
+} from "lucide-react";
+import {
+  loginUser,
+  registerUser,
+  getSiweNonce,
+  verifySiwe,
+  loginWeb3Auth,
+} from "@/lib/api";
+
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,10 +32,67 @@ export default function LoginPage() {
   const [password, setPassword] = useState<string>("Password123!");
   const [role, setRole] = useState<string>("analyst");
   const [loading, setLoading] = useState<boolean>(false);
+  const [web3Loading, setWeb3Loading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // Web3 Sign-In with Ethereum (MetaMask SIWE - EIP-4361)
+  const handleMetaMaskSignIn = async () => {
+    setWeb3Loading(true);
+    setError(null);
+    setSuccess(null);
+
+    try {
+      if (typeof window === "undefined" || !window.ethereum) {
+        throw new Error(
+          "MetaMask wallet extension not detected. Please install MetaMask or use Web3Auth below."
+        );
+      }
+
+      // 1. Request account from MetaMask
+      const accounts = await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+      if (!accounts || accounts.length === 0) {
+        throw new Error("No Ethereum account selected in MetaMask.");
+      }
+      const address = accounts[0];
+
+      // 2. Request challenge nonce from backend
+      const nonce = await getSiweNonce();
+
+      // 3. Construct EIP-4361 compliant challenge message
+      const domain = window.location.host;
+      const uri = window.location.origin;
+      const message =
+        `${domain} wants you to sign in with your Ethereum account:\n` +
+        `${address}\n\n` +
+        `Sign in to DeFiGuard Risk Assessment & Compliance Platform.\n\n` +
+        `URI: ${uri}\n` +
+        `Version: 1\n` +
+        `Chain ID: 11155111\n` +
+        `Nonce: ${nonce}\n` +
+        `Issued At: ${new Date().toISOString()}`;
+
+      // 4. Request cryptographic signature from MetaMask
+      const signature = await window.ethereum.request({
+        method: "personal_sign",
+        params: [message, address],
+      });
+
+      // 5. Verify signature with DeFiGuard backend
+      await verifySiwe(address, message, signature);
+      setSuccess("Wallet cryptographically verified! Redirecting...");
+      router.push("/transactions");
+    } catch (err: any) {
+      console.error("SIWE error:", err);
+      setError(err.message || "Failed to sign in with Ethereum wallet.");
+    } finally {
+      setWeb3Loading(false);
+    }
+  };
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
@@ -24,7 +101,7 @@ export default function LoginPage() {
     try {
       if (isRegister) {
         await registerUser(email, password, role);
-        setSuccess("Account registered successfully! Logging you in...");
+        setSuccess("Account registered! Logging in...");
         await loginUser(email, password);
       } else {
         await loginUser(email, password);
@@ -37,33 +114,11 @@ export default function LoginPage() {
     }
   };
 
-  const setQuickDemo = async (demoEmail: string, demoRole: string) => {
-    setEmail(demoEmail);
-    setPassword("Password123!");
-    setRole(demoRole);
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Attempt login, if not registered yet, auto-register then login
-      try {
-        await loginUser(demoEmail, "Password123!");
-      } catch {
-        await registerUser(demoEmail, "Password123!", demoRole);
-        await loginUser(demoEmail, "Password123!");
-      }
-      router.push("/transactions");
-    } catch (err: any) {
-      setError(err.message || "Failed to initiate demo session.");
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center max-w-md mx-auto px-4 py-8">
+    <div className="min-h-[85vh] flex flex-col items-center justify-center max-w-md mx-auto px-4 py-8">
       <div className="w-full bg-surface border border-border rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
         {/* Glow accent */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute top-0 right-0 w-36 h-36 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Brand header */}
         <div className="flex flex-col items-center text-center mb-6">
@@ -71,39 +126,11 @@ export default function LoginPage() {
             <ShieldCheck className="w-6 h-6" />
           </div>
           <h2 className="text-xl font-bold text-white tracking-wide">
-            {isRegister ? "Create DeFiGuard Account" : "Access DeFiGuard Platform"}
+            DeFiGuard Authentication
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Safe sandbox with role-based governance & transaction intelligence
+            Sign in with MetaMask (EIP-4361 SIWE) or Web3Auth Sapphire Devnet
           </p>
-        </div>
-
-        {/* Quick Demo Shortcuts */}
-        <div className="mb-6 p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
-          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-emerald-400">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Instant Demo Logins</span>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={() => setQuickDemo("analyst@defiguard.io", "analyst")}
-              disabled={loading}
-              className="py-1.5 px-2.5 rounded-lg bg-surface border border-slate-700/60 hover:border-emerald-500/50 text-[11px] font-medium text-slate-200 transition text-left"
-            >
-              🛡️ <span className="font-semibold text-white">Analyst</span>
-              <div className="text-[9px] text-slate-400">AML & Risk Review</div>
-            </button>
-            <button
-              type="button"
-              onClick={() => setQuickDemo("trader@defiguard.io", "user")}
-              disabled={loading}
-              className="py-1.5 px-2.5 rounded-lg bg-surface border border-slate-700/60 hover:border-cyan-500/50 text-[11px] font-medium text-slate-200 transition text-left"
-            >
-              ⚡ <span className="font-semibold text-white">DeFi User</span>
-              <div className="text-[9px] text-slate-400">Loans & AMM Swaps</div>
-            </button>
-          </div>
         </div>
 
         {error && (
@@ -113,12 +140,45 @@ export default function LoginPage() {
         )}
 
         {success && (
-          <div className="mb-4 p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs">
-            {success}
+          <div className="mb-4 p-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-1.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span>{success}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* PRIMARY WEB3 WALLET LOGIN (SIWE) */}
+        <div className="space-y-3 mb-6">
+          <button
+            type="button"
+            onClick={handleMetaMaskSignIn}
+            disabled={web3Loading}
+            className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-bold text-xs transition flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+          >
+            <WalletIcon className="w-4 h-4 text-slate-950" />
+            <span>
+              {web3Loading
+                ? "Waiting for MetaMask Signature..."
+                : "Sign-In with Ethereum (MetaMask)"}
+            </span>
+          </button>
+
+          <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
+            <span>Network: Sepolia (11155111)</span>
+            <span>Zero Gas Fee Required</span>
+          </div>
+        </div>
+
+        {/* Divider */}
+        <div className="relative flex py-2 items-center mb-6">
+          <div className="flex-grow border-t border-slate-800" />
+          <span className="flex-shrink mx-3 text-slate-500 text-[10px] uppercase tracking-wider">
+            Or standard credentials
+          </span>
+          <div className="flex-grow border-t border-slate-800" />
+        </div>
+
+        {/* EMAIL & PASSWORD LOGIN FORM */}
+        <form onSubmit={handleEmailSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-slate-300 mb-1">
               Email Address
@@ -130,7 +190,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 placeholder="analyst@defiguard.io"
               />
             </div>
@@ -147,7 +207,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition"
+                className="w-full bg-slate-950 border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500"
                 placeholder="••••••••"
               />
             </div>
@@ -156,7 +216,7 @@ export default function LoginPage() {
           {isRegister && (
             <div>
               <label className="block text-xs font-medium text-slate-300 mb-1">
-                Access Role
+                Role
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {["user", "analyst", "admin"].map((r) => (
@@ -180,16 +240,9 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 font-semibold text-xs text-slate-950 transition flex items-center justify-center gap-2 mt-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+            className="w-full py-2.5 rounded-lg bg-surface border border-slate-700 hover:border-slate-500 font-semibold text-xs text-slate-200 transition flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            {loading ? (
-              "Authenticating..."
-            ) : (
-              <>
-                <span>{isRegister ? "Complete Registration" : "Sign In to Dashboard"}</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
-            )}
+            {loading ? "Authenticating..." : isRegister ? "Create Account" : "Sign In"}
           </button>
         </form>
 
