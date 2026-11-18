@@ -51,6 +51,39 @@ export interface DemoImportResult {
   anomalous_count: number;
 }
 
+export interface ContributingSignal {
+  code: string;
+  label: string;
+  weight: number;
+  description?: string;
+}
+
+export interface RiskAnalysisResponse {
+  analysis_id: string;
+  subject_type: string;
+  subject_id: string;
+  score: number;
+  risk_band: "low" | "medium" | "high" | "critical";
+  is_fraud_probability: boolean;
+  model_name: string;
+  model_version: string;
+  signals: ContributingSignal[];
+  disclaimer: string;
+  created_at: string;
+}
+
+export interface RiskOverviewStats {
+  total_transactions_analyzed: number;
+  flagged_anomalies: number;
+  high_risk_wallets: number;
+  critical_alerts: number;
+  average_risk_score: number;
+  anomaly_rate_percent: number;
+  model_status: string;
+  model_version: string;
+  last_updated: string;
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
@@ -213,6 +246,36 @@ export async function seedDemoTransactions(): Promise<DemoImportResult> {
   });
   if (!res.ok) {
     throw new Error("Failed to seed demo transactions.");
+  }
+  return res.json();
+}
+
+export async function fetchRiskOverview(): Promise<RiskOverviewStats> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/risk/overview`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load risk engine overview.");
+  return res.json();
+}
+
+export async function analyzeRisk(
+  transaction_id?: string,
+  wallet_address?: string
+): Promise<RiskAnalysisResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/risk/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ transaction_id, wallet_address }),
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || "Risk analysis failed.");
   }
   return res.json();
 }
