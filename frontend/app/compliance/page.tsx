@@ -9,6 +9,7 @@ import {
   updateComplianceCase,
   fileSARReport,
   verifyTravelRule,
+  draftSarWithGemini,
   ComplianceMetrics,
   ComplianceCaseItem,
   ScreeningResponse,
@@ -45,6 +46,25 @@ export default function CompliancePage() {
   const [sarOfficer, setSarOfficer] = useState("Sarah Chen (Chief AML Officer)");
   const [sarReceipt, setSarReceipt] = useState<any | null>(null);
   const [sarLoading, setSarLoading] = useState(false);
+  const [draftingGemini, setDraftingGemini] = useState(false);
+
+  async function handleGeminiDraftSar() {
+    if (!selectedCaseForSAR) return;
+    setDraftingGemini(true);
+    try {
+      const res = await draftSarWithGemini(
+        selectedCaseForSAR.id,
+        selectedCaseForSAR.target_address,
+        Number(sarAmount),
+        selectedCaseForSAR.violation_type || "SUSPICIOUS_HIGH_RISK_FLOW"
+      );
+      setSarNarrative(res.narrative);
+    } catch (err: any) {
+      alert("Failed to draft with Gemini: " + err.message);
+    } finally {
+      setDraftingGemini(false);
+    }
+  }
 
   // Status message
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -666,12 +686,24 @@ export default function CompliancePage() {
                 </div>
 
                 <div>
-                  <label className="text-[11px] font-medium text-slate-400 uppercase">Investigative Narrative (Required)</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-medium text-slate-400 uppercase">Investigative Narrative (Required)</label>
+                    <button
+                      type="button"
+                      onClick={handleGeminiDraftSar}
+                      disabled={draftingGemini}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-[11px] font-semibold text-purple-300 transition disabled:opacity-50"
+                    >
+                      <span>✨</span>
+                      <span>{draftingGemini ? "Drafting with Gemini..." : "Draft Narrative with Google Gemini AI"}</span>
+                    </button>
+                  </div>
                   <textarea
                     rows={4}
                     value={sarNarrative}
                     onChange={(e) => setSarNarrative(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white focus:outline-none focus:border-rose-500"
+                    placeholder="Describe the suspicious transaction activity, counterparties, and regulatory grounds..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg p-3 text-white text-xs focus:outline-none focus:border-rose-500"
                   />
                 </div>
 

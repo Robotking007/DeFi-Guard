@@ -18,7 +18,37 @@ from app.schemas.compliance import (
 )
 from app.compliance.case_service import CaseService
 
+from pydantic import BaseModel
+from app.services.gemini_service import gemini_ai
+
 router = APIRouter(prefix="/compliance", tags=["regtech-compliance"])
+
+class DraftSARRequest(BaseModel):
+    case_id: str
+    address: str
+    amount_usd: float
+    rule_code: str
+
+class DraftSARResponse(BaseModel):
+    case_id: str
+    narrative: str
+
+
+@router.post("/draft-sar", response_model=DraftSARResponse)
+@router.post("/draft-sar/", response_model=DraftSARResponse)
+def draft_sar_with_gemini(
+    payload: DraftSARRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Use Google Gemini AI to draft a formal FinCEN SAR narrative."""
+    narrative = gemini_ai.draft_fincen_sar_narrative(
+        case_id=payload.case_id,
+        address=payload.address,
+        amount_usd=payload.amount_usd,
+        rule_code=payload.rule_code,
+    )
+    return DraftSARResponse(case_id=payload.case_id, narrative=narrative)
+
 
 
 @router.get("/metrics", response_model=ComplianceMetrics)

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   fetchContractPresets,
   runContractScan,
+  explainFindingWithGemini,
   PresetContract,
   SecurityScanResponse,
 } from "../../lib/api";
@@ -19,6 +20,25 @@ export default function SecurityPage() {
   const [scanResult, setScanResult] = useState<SecurityScanResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Google Gemini AI Explanation State
+  const [geminiExplanation, setGeminiExplanation] = useState<string | null>(null);
+  const [explainingDetector, setExplainingDetector] = useState<string | null>(null);
+  const [geminiLoading, setGeminiLoading] = useState<boolean>(false);
+
+  async function handleGeminiExplain(detector: string, snippet: string) {
+    setGeminiLoading(true);
+    setExplainingDetector(detector);
+    setGeminiExplanation(null);
+    try {
+      const res = await explainFindingWithGemini(detector, snippet);
+      setGeminiExplanation(res.explanation);
+    } catch (err: any) {
+      setGeminiExplanation("Failed to generate Gemini AI explanation: " + err.message);
+    } finally {
+      setGeminiLoading(false);
+    }
+  }
 
   useEffect(() => {
     fetchContractPresets()
@@ -343,6 +363,40 @@ export default function SecurityPage() {
                         {f.recommendation && (
                           <div className="p-2 rounded bg-slate-900 border border-slate-800/80 text-[11px] text-emerald-300 mt-1">
                             <span className="font-semibold text-slate-400">Remediation:</span> {f.recommendation}
+                          </div>
+                        )}
+
+                        {/* Gemini Generative AI Explanation Trigger */}
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            onClick={() => handleGeminiExplain(f.detector, f.recommendation || f.description)}
+                            disabled={geminiLoading && explainingDetector === f.detector}
+                            className="flex items-center gap-1.5 px-2.5 py-1 rounded bg-purple-500/15 hover:bg-purple-500/25 border border-purple-500/30 text-[11px] font-semibold text-purple-300 transition disabled:opacity-50"
+                          >
+                            <span>✨</span>
+                            <span>
+                              {geminiLoading && explainingDetector === f.detector
+                                ? "Consulting Gemini AI..."
+                                : "Analyze with Google Gemini AI"}
+                            </span>
+                          </button>
+                        </div>
+
+                        {geminiExplanation && explainingDetector === f.detector && (
+                          <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/30 text-xs text-purple-200 mt-2 space-y-1.5 whitespace-pre-line">
+                            <div className="flex items-center justify-between font-bold text-purple-300 text-[11px] uppercase tracking-wide border-b border-purple-500/20 pb-1">
+                              <span>Google Gemini Flash Remediation Intelligence</span>
+                              <button
+                                onClick={() => setGeminiExplanation(null)}
+                                className="text-slate-400 hover:text-white"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                            <div className="text-[11px] text-slate-200 leading-relaxed font-sans">
+                              {geminiExplanation}
+                            </div>
                           </div>
                         )}
                       </div>

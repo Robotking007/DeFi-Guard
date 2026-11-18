@@ -14,7 +14,10 @@ from app.schemas.transaction import (
     TransactionResponse,
     PaginatedTransactions,
     DemoImportResponse,
+    LiveSyncRequest,
+    LiveSyncResponse,
 )
+from app.services.blockchain_service import sync_live_wallet_transactions
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
@@ -26,6 +29,7 @@ FLAGGED_MIXER_TORNADO = "0xd90e2f925DA726b50C4Ed8D0Fb90Ad053324F31b"
 FLAGGED_SANCTIONED_OFAC = "0x1da5821544e25c636c1417ba96ade4cf6d2f9b5a"
 
 
+@router.get("", response_model=PaginatedTransactions)
 @router.get("/", response_model=PaginatedTransactions)
 def list_transactions(
     page: int = Query(default=1, ge=1),
@@ -132,6 +136,7 @@ def get_transaction(
 
 
 @router.post("/import-demo", response_model=DemoImportResponse)
+@router.post("/import-demo/", response_model=DemoImportResponse)
 def import_demo_transactions(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -265,3 +270,26 @@ def import_demo_transactions(
         normal_count=normal_count,
         anomalous_count=anomalous_count,
     )
+
+
+@router.post("/sync-live", response_model=LiveSyncResponse)
+@router.post("/sync-live/", response_model=LiveSyncResponse)
+async def sync_live_transactions(
+    req: LiveSyncRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Query real live on-chain transactions via Etherscan V2 API & Alchemy RPC
+    for any Ethereum or Sepolia address, persist to DB, and evaluate via
+    the 10k-trained ML Anomaly Risk Engine.
+    """
+    result = await sync_live_wallet_transactions(
+        address=req.address,
+        chain_id=req.chain_id,
+        user=current_user,
+        db=db,
+        limit=req.limit,
+    )
+    return LiveSyncResponse(**result)
+

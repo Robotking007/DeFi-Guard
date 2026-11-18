@@ -33,3 +33,19 @@ class DemoImportResponse(BaseModel):
     inserted_count: int
     normal_count: int
     anomalous_count: int
+
+
+class LiveSyncRequest(BaseModel):
+    address: str = Field(..., description="Ethereum wallet or smart contract address (0x...)")
+    chain_id: int = Field(default=1, description="1 for Ethereum Mainnet, 11155111 for Sepolia")
+    limit: int = Field(default=25, ge=1, le=100)
+
+
+class LiveSyncResponse(BaseModel):
+    status: str
+    synced_count: int
+    anomalous_count: int
+    address: str
+    chain_id: int
+    source: str
+

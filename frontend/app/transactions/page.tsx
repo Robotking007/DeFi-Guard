@@ -21,6 +21,7 @@ import {
 import {
   fetchTransactions,
   seedDemoTransactions,
+  syncLiveTransactions,
   TransactionItem,
   PaginatedTransactions,
   getStoredToken,
@@ -36,6 +37,34 @@ export default function TransactionsPage() {
   const [seeding, setSeeding] = useState<boolean>(false);
   const [seedNotice, setSeedNotice] = useState<string | null>(null);
   const [selectedTx, setSelectedTx] = useState<TransactionItem | null>(null);
+
+  // Live On-Chain Sync State
+  const [syncAddress, setSyncAddress] = useState<string>("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+  const [syncChainId, setSyncChainId] = useState<number>(1);
+  const [syncing, setSyncing] = useState<boolean>(false);
+  const [syncSuccess, setSyncSuccess] = useState<string | null>(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const handleSyncLive = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!syncAddress.trim()) return;
+    setSyncing(true);
+    setSyncSuccess(null);
+    setSyncError(null);
+
+    try {
+      const res = await syncLiveTransactions(syncAddress.trim(), syncChainId, 25);
+      setSyncSuccess(
+        `Successfully synced ${res.synced_count} real on-chain transactions via Etherscan V2 API! (${res.anomalous_count} flagged by 10k-record ML engine).`
+      );
+      setPage(1);
+      await loadData();
+    } catch (err: any) {
+      setSyncError(err.message || "Failed to fetch live transactions from Etherscan V2.");
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -125,6 +154,106 @@ export default function TransactionsPage() {
           </button>
         </div>
       )}
+
+      {/* Live Blockchain Sync Controller */}
+      <div className="p-4 rounded-xl bg-slate-900/90 border border-cyan-500/30 shadow-lg space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-3">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span className="text-xs font-semibold text-white tracking-wide uppercase">
+              Live On-Chain Transaction Ingestion Engine
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-emerald-400">
+              Etherscan V2 API: Active
+            </span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-cyan-400">
+              Alchemy Sepolia RPC: Connected
+            </span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-amber-400">
+              CoinGecko Live Rates: Active
+            </span>
+            <span className="px-2 py-0.5 rounded bg-slate-800 border border-slate-700 text-purple-400">
+              ML Model: 10,000 Trained
+            </span>
+          </div>
+        </div>
+
+        <form onSubmit={handleSyncLive} className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          <div className="flex-1 relative">
+            <label className="text-[10px] text-slate-400 block mb-1">
+              Ethereum / Sepolia Wallet or Smart Contract Address:
+            </label>
+            <input
+              type="text"
+              value={syncAddress}
+              onChange={(e) => setSyncAddress(e.target.value)}
+              placeholder="0x... (e.g. 0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045)"
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs font-mono text-cyan-300 placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+
+          <div className="w-full md:w-44">
+            <label className="text-[10px] text-slate-400 block mb-1">EVM Network:</label>
+            <select
+              value={syncChainId}
+              onChange={(e) => setSyncChainId(Number(e.target.value))}
+              className="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+            >
+              <option value={1}>Ethereum Mainnet (1)</option>
+              <option value={11155111}>Sepolia Testnet (11155111)</option>
+            </select>
+          </div>
+
+          <div className="flex items-end pt-5 md:pt-0">
+            <button
+              type="submit"
+              disabled={syncing || !syncAddress.trim()}
+              className="w-full md:w-auto px-5 py-2 rounded-lg bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-xs font-bold text-white shadow-lg transition flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`} />
+              <span>{syncing ? "Querying Etherscan V2..." : "Sync Live Blockchain Transactions"}</span>
+            </button>
+          </div>
+        </form>
+
+        <div className="flex flex-wrap items-center gap-2 text-[11px] text-slate-400">
+          <span className="text-slate-500">Quick Addresses:</span>
+          <button
+            type="button"
+            onClick={() => { setSyncAddress("0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045"); setSyncChainId(1); }}
+            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-[10px] transition"
+          >
+            vitalik.eth (0xd8dA...6045)
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSyncAddress("0xE592427A0AEce92De3Edee1F18E0157C05861564"); setSyncChainId(1); }}
+            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-[10px] transition"
+          >
+            Uniswap V3 Router (0xE592...1564)
+          </button>
+          <button
+            type="button"
+            onClick={() => { setSyncAddress("0x71C8fb9624647ae2798454BA32074972eA97B01E"); setSyncChainId(11155111); }}
+            className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 font-mono text-[10px] transition"
+          >
+            Sepolia Test Treasury
+          </button>
+        </div>
+
+        {syncSuccess && (
+          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300">
+            ✓ {syncSuccess}
+          </div>
+        )}
+        {syncError && (
+          <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-xs text-rose-300">
+            ⚠ {syncError}
+          </div>
+        )}
+      </div>
 
       {/* KPI Overview Strip */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

@@ -1,23 +1,34 @@
 import requests
 import json
-from typing import Optional, Dict, Any
+import logging
+from typing import Optional, Dict, Any, List
 from app.core.config import settings
+
+logger = logging.getLogger("gemini_service")
+
+FALLBACK_MODELS = [
+    "gemini-flash-latest",
+    "gemini-flash-lite-latest",
+    "gemini-pro-latest",
+]
 
 class GeminiService:
     """Google Gemini AI Service configured for DeFiGuard risk and audit intelligence."""
 
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.model = settings.GEMINI_MODEL
+        self.preferred_model = settings.GEMINI_MODEL or "gemini-flash-latest"
+        self.model = self.preferred_model
         self.project_name = settings.GCP_PROJECT_NAME
         self.project_number = settings.GCP_PROJECT_NUMBER
         self.app_name = settings.GEMINI_APP_NAME
-        self.endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent?key={self.api_key}"
 
     def generate_explanation(self, prompt: str, system_instruction: Optional[str] = None) -> str:
-        """Call Google Gemini Flash model to generate an AI explanation."""
+        """Call Google Gemini to generate real AI explanation with automatic model fallback."""
         if not self.api_key:
             return "Gemini API key is not configured."
+
+        models_to_try = [self.preferred_model] + [m for m in FALLBACK_MODELS if m != self.preferred_model]
 
         payload: Dict[str, Any] = {
             "contents": [
@@ -38,23 +49,31 @@ class GeminiService:
                 "parts": [{"text": system_instruction}]
             }
 
-        try:
-            res = requests.post(
-                self.endpoint,
-                headers={"Content-Type": "application/json"},
-                json=payload,
-                timeout=10.0,
-            )
-            if res.status_code == 200:
-                data = res.json()
-                candidates = data.get("candidates", [])
-                if candidates and "content" in candidates[0]:
-                    parts = candidates[0]["content"].get("parts", [])
-                    if parts and "text" in parts[0]:
-                        return parts[0]["text"].strip()
-            return f"Gemini response status: {res.status_code} - {res.text[:120]}"
-        except Exception as e:
-            return f"Gemini service exception: {str(e)}"
+        last_error = ""
+        for model in models_to_try:
+            endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
+            try:
+                res = requests.post(
+                    endpoint,
+                    headers={"Content-Type": "application/json"},
+                    json=payload,
+                    timeout=12.0,
+                )
+                if res.status_code == 200:
+                    data = res.json()
+                    candidates = data.get("candidates", [])
+                    if candidates and "content" in candidates[0]:
+                        parts = candidates[0]["content"].get("parts", [])
+                        if parts and "text" in parts[0]:
+                            return parts[0]["text"].strip()
+                else:
+                    last_error = f"{model} returned {res.status_code}"
+                    logger.warning(f"Gemini {model} failed with status {res.status_code}. Trying next model...")
+            except Exception as e:
+                last_error = str(e)
+                logger.warning(f"Gemini {model} exception: {e}")
+
+        return f"Gemini service unavailable ({last_error}). Please try again."
 
     def explain_smart_contract_finding(self, detector: str, code_snippet: str) -> str:
         """Generate plain-English developer remediation advice for Slither/AST findings."""

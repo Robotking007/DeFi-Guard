@@ -51,6 +51,15 @@ export interface DemoImportResult {
   anomalous_count: number;
 }
 
+export interface LiveSyncResult {
+  status: string;
+  synced_count: number;
+  anomalous_count: number;
+  address: string;
+  chain_id: number;
+  source: string;
+}
+
 export interface ContributingSignal {
   code: string;
   label: string;
@@ -368,6 +377,73 @@ export async function seedDemoTransactions(): Promise<DemoImportResult> {
   }
   return res.json();
 }
+
+export async function syncLiveTransactions(
+  address: string,
+  chainId: number = 1,
+  limit: number = 25
+): Promise<LiveSyncResult> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/transactions/sync-live`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ address, chain_id: chainId, limit }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to sync live blockchain transactions.");
+  }
+  return res.json();
+}
+
+export async function draftSarWithGemini(
+  caseId: string,
+  address: string,
+  amountUsd: number,
+  ruleCode: string
+): Promise<{ case_id: string; narrative: string }> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/draft-sar`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      case_id: caseId,
+      address,
+      amount_usd: amountUsd,
+      rule_code: ruleCode,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to draft SAR narrative with Gemini.");
+  }
+  return res.json();
+}
+
+export async function explainFindingWithGemini(
+  detector: string,
+  codeSnippet: string
+): Promise<{ explanation: string; detector: string }> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/security/explain-finding`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ detector, code_snippet: codeSnippet }),
+  });
+  if (!res.ok) {
+    throw new Error("Failed to generate Gemini AI explanation.");
+  }
+  return res.json();
+}
+
 
 export async function fetchRiskOverview(): Promise<RiskOverviewStats> {
   const token = getStoredToken();
