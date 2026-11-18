@@ -611,3 +611,176 @@ export async function verifyTravelRule(payload: {
   }
   return res.json();
 }
+
+// ----------------- TOKEN SWAPS & AMM (MODULE 3 & 4) -----------------
+
+export interface LiquidityPoolInfo {
+  pool_name: string;
+  token_a: string;
+  token_b: string;
+  reserve_a: number;
+  reserve_b: number;
+  total_liquidity_usd: number;
+  fee_tier_percent: number;
+  volume_24h_usd: number;
+  apy_percent: number;
+}
+
+export interface SwapQuoteResponse {
+  token_in: string;
+  token_out: string;
+  amount_in: number;
+  expected_amount_out: number;
+  minimum_amount_out: number;
+  execution_price: number;
+  price_impact_percent: number;
+  lp_fee_amount: number;
+  lp_fee_percent: number;
+  pool_reserves_in: number;
+  pool_reserves_out: number;
+  constant_product_k: number;
+}
+
+export interface SwapExecuteResponse {
+  tx_hash: string;
+  token_in: string;
+  token_out: string;
+  amount_in: number;
+  amount_out_received: number;
+  effective_rate: number;
+  timestamp: string;
+  status: string;
+}
+
+export interface ImpermanentLossResponse {
+  price_ratio_k: number;
+  impermanent_loss_percent: number;
+  pool_hold_value_usd: number;
+  hoddle_value_usd: number;
+  net_difference_usd: number;
+  explanation: string;
+}
+
+export interface DyDxPerpRiskResponse {
+  position_type: string;
+  position_size_usd: number;
+  leverage: number;
+  initial_margin_usd: number;
+  maintenance_margin_usd: number;
+  liquidation_price_usd: number;
+  distance_to_liquidation_percent: number;
+  est_funding_fee_daily_usd: number;
+  risk_level: string;
+  remediation_advice: string;
+}
+
+export interface DukeProtocolStudy {
+  protocol: string;
+  duke_module: string;
+  core_mechanism: string;
+  math_formula: string;
+  key_parameters: Record<string, any>;
+  live_risk_implications: string;
+}
+
+export async function fetchLiquidityPools(): Promise<LiquidityPoolInfo[]> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/swap/pools`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load liquidity pools.");
+  return res.json();
+}
+
+export async function fetchSwapQuote(
+  token_in: string,
+  token_out: string,
+  amount_in: number,
+  slippage_tolerance_percent: number = 0.5
+): Promise<SwapQuoteResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/swap/quote`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token_in, token_out, amount_in, slippage_tolerance_percent }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to fetch swap quote.");
+  }
+  return res.json();
+}
+
+export async function executeSwapTransaction(
+  token_in: string,
+  token_out: string,
+  amount_in: number,
+  minimum_amount_out: number
+): Promise<SwapExecuteResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/swap/execute`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ token_in, token_out, amount_in, minimum_amount_out }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Swap execution failed.");
+  }
+  return res.json();
+}
+
+export async function calculateImpermanentLoss(
+  price_change_token_a_percent: number,
+  price_change_token_b_percent: number = 0
+): Promise<ImpermanentLossResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/swap/impermanent-loss`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ price_change_token_a_percent, price_change_token_b_percent }),
+  });
+  if (!res.ok) throw new Error("Impermanent loss calculation failed.");
+  return res.json();
+}
+
+export async function calculateDyDxPerpRisk(payload: {
+  position_type: string;
+  entry_price_usd: number;
+  collateral_usd: number;
+  leverage: number;
+  maintenance_margin_rate?: number;
+  current_funding_rate_8h?: number;
+}): Promise<DyDxPerpRiskResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/swap/dydx-margin-risk`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("dYdX derivatives calculation failed.");
+  return res.json();
+}
+
+export async function fetchDukeProtocolsStudy(): Promise<DukeProtocolStudy[]> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/swap/duke-protocols`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load Duke protocols study.");
+  return res.json();
+}
