@@ -854,3 +854,91 @@ export async function runContractScan(payload: {
   }
   return res.json();
 }
+
+// ----------------- DAO GOVERNANCE (MODULE 9) -----------------
+
+export interface ProposalItem {
+  id: string;
+  title: string;
+  description: string;
+  proposer_wallet: string;
+  status: string;
+  start_at: string;
+  end_at: string;
+  votes_for: number;
+  votes_against: number;
+  votes_abstain: number;
+  total_votes: number;
+  quorum_reached: boolean;
+  quorum_threshold: number;
+  time_remaining: string;
+}
+
+export async function fetchProposals(): Promise<ProposalItem[]> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/governance/proposals`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load governance proposals.");
+  return res.json();
+}
+
+export async function createDAOProposal(payload: {
+  title: string;
+  description: string;
+  proposer_wallet: string;
+  duration_days?: number;
+}): Promise<ProposalItem> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/governance/proposals`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to create proposal.");
+  }
+  return res.json();
+}
+
+export async function castVoteOnProposal(payload: {
+  proposal_id: string;
+  voter_wallet: string;
+  choice: "for" | "against" | "abstain";
+  voting_power?: number;
+}): Promise<any> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/governance/vote`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to cast vote.");
+  }
+  return res.json();
+}
+
+export async function executeDAOProposal(proposal_id: string): Promise<any> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/governance/proposals/${proposal_id}/execute`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to execute proposal.");
+  }
+  return res.json();
+}

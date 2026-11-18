@@ -15,6 +15,7 @@ from app.api.v1.analytics import router as analytics_router
 from app.api.v1.compliance import router as compliance_router
 from app.api.v1.swap import router as swap_router
 from app.api.v1.security import router as security_router
+from app.api.v1.governance import router as governance_router
 
 # Initialize all database tables for local dev
 Base.metadata.create_all(bind=engine)
@@ -76,3 +77,4 @@ app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
 app.include_router(compliance_router, prefix=settings.API_V1_PREFIX)
 app.include_router(swap_router, prefix=settings.API_V1_PREFIX)
 app.include_router(security_router, prefix=settings.API_V1_PREFIX)
+app.include_router(governance_router, prefix=settings.API_V1_PREFIX)
