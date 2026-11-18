@@ -12,6 +12,7 @@ from app.api.v1.transactions import router as transactions_router
 from app.api.v1.risk import router as risk_router
 from app.api.v1.lending import router as lending_router
 from app.api.v1.analytics import router as analytics_router
+from app.api.v1.compliance import router as compliance_router
 
 # Initialize all database tables for local dev
 Base.metadata.create_all(bind=engine)
@@ -70,3 +71,4 @@ app.include_router(transactions_router, prefix=settings.API_V1_PREFIX)
 app.include_router(risk_router, prefix=settings.API_V1_PREFIX)
 app.include_router(lending_router, prefix=settings.API_V1_PREFIX)
 app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
+app.include_router(compliance_router, prefix=settings.API_V1_PREFIX)

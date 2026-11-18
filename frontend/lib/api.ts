@@ -142,6 +142,67 @@ export interface StressTestResult {
   remediation_advice: string;
 }
 
+// ----------------- REGTECH & COMPLIANCE (MODULE 6) -----------------
+
+export interface SanctionsMatch {
+  id?: string;
+  name?: string;
+  aliases?: string;
+  sanctions?: string;
+  dataset?: string;
+  countries?: string;
+  program_ids?: string;
+  match_type: string;
+  severity: string;
+}
+
+export interface ScreeningResponse {
+  query: string;
+  is_sanctioned: boolean;
+  total_matches: number;
+  matches: SanctionsMatch[];
+  checked_at: string;
+}
+
+export interface ComplianceMetrics {
+  overall_risk_score: number;
+  risk_level: string;
+  pending_alerts: number;
+  active_cases: number;
+  watchlist_matches: number;
+  sar_filings_count: number;
+  category_distribution: Record<string, number>;
+  priority_distribution: Record<string, number>;
+}
+
+export interface ComplianceCaseItem {
+  id: string;
+  case_number: string;
+  target_address: string;
+  entity_name?: string;
+  violation_type: string;
+  priority: string;
+  status: string;
+  risk_score: number;
+  assigned_to?: string;
+  notes?: string;
+  decision?: string;
+  sar_reference?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TravelRuleResult {
+  is_compliant: boolean;
+  threshold_usd: number;
+  threshold_exceeded: boolean;
+  missing_fields: string[];
+  originator_sanction_check: boolean;
+  beneficiary_sanction_check: boolean;
+  risk_verdict: string;
+  recommendation: string;
+}
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api/v1";
 
@@ -446,6 +507,107 @@ export async function runStressTest(
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.detail || "Stress test simulation failed.");
+  }
+  return res.json();
+}
+
+// ----------------- REGTECH & COMPLIANCE (MODULE 6) -----------------
+
+export async function fetchComplianceMetrics(): Promise<ComplianceMetrics> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/metrics`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load compliance metrics.");
+  return res.json();
+}
+
+export async function screenSanctionsTarget(query: string): Promise<ScreeningResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/screen`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ query }),
+  });
+  if (!res.ok) throw new Error("Sanctions screening failed.");
+  return res.json();
+}
+
+export async function fetchComplianceCases(): Promise<ComplianceCaseItem[]> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/cases`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load compliance cases.");
+  return res.json();
+}
+
+export async function updateComplianceCase(
+  case_id: string,
+  payload: { status?: string; priority?: string; assigned_to?: string; resolution_notes?: string }
+): Promise<any> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/cases/${case_id}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("Failed to update case.");
+  return res.json();
+}
+
+export async function fileSARReport(payload: {
+  case_id: string;
+  narrative: string;
+  suspicious_amount_usd: number;
+  officer_name?: string;
+}): Promise<any> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/sar-filing`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "SAR filing failed.");
+  }
+  return res.json();
+}
+
+export async function verifyTravelRule(payload: {
+  originator_name: string;
+  originator_address: string;
+  originator_vasp: string;
+  beneficiary_name: string;
+  beneficiary_address: string;
+  beneficiary_vasp: string;
+  amount_usd: number;
+  asset_symbol?: string;
+}): Promise<TravelRuleResult> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/compliance/travel-rule`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Travel rule check failed.");
   }
   return res.json();
 }
