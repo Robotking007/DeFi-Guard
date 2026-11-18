@@ -182,3 +182,26 @@ def get_risk_overview(
         model_version=MODEL_VERSION,
         last_updated=datetime.utcnow(),
     )
+
+
+# ----------------- APACHE AIRFLOW ML PIPELINE ORCHESTRATION -----------------
+
+from app.schemas.airflow_schemas import AirflowDAGInfo, AirflowTriggerRequest, AirflowRunResponse
+from app.services.airflow_service import AirflowClientService
+
+_airflow_service = AirflowClientService()
+
+
+@router.get("/airflow/dags", response_model=List[AirflowDAGInfo])
+def get_airflow_dags(current_user: User = Depends(get_current_user)):
+    """Return all Apache Airflow DAGs registered for ML training & risk inference."""
+    return _airflow_service.list_dags()
+
+
+@router.post("/airflow/trigger", response_model=AirflowRunResponse)
+def trigger_airflow_dag(
+    payload: AirflowTriggerRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """Trigger an on-demand DAG run for ML model training or batch inference."""
+    return _airflow_service.trigger_dag_run(payload)

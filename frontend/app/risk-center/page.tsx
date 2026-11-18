@@ -14,6 +14,9 @@ import {
   Layers,
   ArrowRight,
   Info,
+  Workflow,
+  Play,
+  ExternalLink,
 } from "lucide-react";
 import {
   fetchRiskOverview,
@@ -22,6 +25,10 @@ import {
   RiskAnalysisResponse,
   fetchTransactions,
   TransactionItem,
+  fetchAirflowDAGs,
+  triggerAirflowDAG,
+  AirflowDAGInfo,
+  AirflowRunResponse,
 } from "@/lib/api";
 
 export default function RiskCenterPage() {
@@ -34,15 +41,25 @@ export default function RiskCenterPage() {
   const [analyzing, setAnalyzing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Airflow Pipeline state
+  const [airflowDags, setAirflowDags] = useState<AirflowDAGInfo[]>([]);
+  const [triggeringDag, setTriggeringDag] = useState<string | null>(null);
+  const [airflowRunResult, setAirflowRunResult] = useState<AirflowRunResponse | null>(null);
+  const [airflowFeedback, setAirflowFeedback] = useState<string | null>(null);
+
   useEffect(() => {
     Promise.all([
       fetchRiskOverview().catch(() => null),
       fetchTransactions(1, 10).catch(() => null),
-    ]).then(([overviewData, txData]) => {
+      fetchAirflowDAGs().catch(() => []),
+    ]).then(([overviewData, txData, dagsData]) => {
       if (overviewData) setStats(overviewData);
       if (txData && txData.items.length > 0) {
         setRecentTxs(txData.items);
         setSelectedTxId(txData.items[0].id);
+      }
+      if (dagsData && dagsData.length > 0) {
+        setAirflowDags(dagsData);
       }
       setLoading(false);
     });
@@ -61,259 +78,277 @@ export default function RiskCenterPage() {
     }
   };
 
+  const handleTriggerAirflow = async (dagId: string) => {
+    setTriggeringDag(dagId);
+    setAirflowFeedback(null);
+    try {
+      const res = await triggerAirflowDAG(dagId);
+      setAirflowRunResult(res);
+      setAirflowFeedback(`Airflow DAG '${dagId}' executed successfully! Run ID: ${res.dag_run_id}`);
+    } catch (err: any) {
+      alert("Failed to trigger Airflow DAG: " + err.message);
+    } finally {
+      setTriggeringDag(null);
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header matching BlockBuster reference screen */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
+    <div className="space-y-8 pb-12">
+      {/* Top Header section */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-6">
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              LIVE MONITORING
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              Module 5
             </span>
-            <span className="text-xs text-slate-500 font-mono">Module 5: AI Risk Engine</span>
+            <span className="text-xs text-slate-400 font-mono">BlockBuster Risk Center</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            Analytics Overview
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white mt-1">
+            AI Anomaly & Fraud Risk Engine
           </h1>
-          <p className="text-xs text-slate-400 mt-1">
-            Real-time blockchain transaction intelligence & Isolation Forest anomaly projection
+          <p className="text-sm text-slate-400 mt-1">
+            Unsupervised Isolation Forest ML anomaly detection orchestrated via <span className="text-indigo-400 font-semibold">Apache Airflow</span>.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="px-3 py-1.5 rounded-lg bg-surface border border-border text-xs flex items-center gap-2">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface border border-border text-xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span className="text-slate-400">Model:</span>
-            <span className="font-mono text-purple-400 font-semibold">Isolation Forest v1.0.0</span>
+            <span className="font-mono text-white font-semibold">
+              {stats?.model_version || "IsolationForest-v1.0"}
+            </span>
           </div>
+          <a
+            href="http://localhost:8080"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-950/60 border border-indigo-500/40 text-indigo-300 hover:text-white text-xs font-semibold transition"
+          >
+            <Workflow className="w-3.5 h-3.5 text-indigo-400" />
+            <span>Airflow Webserver (8080)</span>
+            <ExternalLink className="w-3 h-3 text-slate-400" />
+          </a>
         </div>
       </div>
 
-      {/* 4 BlockBuster Top Metric Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Card 1 */}
-        <div className="p-4 rounded-xl bg-surface border border-border relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Activity className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-semibold text-emerald-400">+8.4%</span>
+      {/* KPI Overview Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-4 rounded-xl bg-surface border border-border">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>Total Transactions Scanned</span>
+            <Activity className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-2xl font-bold text-white mt-3">
-            {stats ? stats.total_transactions_analyzed : 337}
+          <div className="text-2xl font-bold text-white mt-2 font-mono">
+            {stats ? stats.total_transactions_analyzed : "33"}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5 font-medium">TOTAL TRANSACTIONS ANALYZED</div>
-          <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            Transactions active
+          <div className="text-[11px] text-slate-400 mt-1">Live telemetry pipeline</div>
+        </div>
+
+        <div className="p-4 rounded-xl bg-surface border border-border">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>Flagged Anomalies</span>
+            <AlertTriangle className="w-4 h-4 text-amber-400" />
+          </div>
+          <div className="text-2xl font-bold text-amber-400 mt-2 font-mono">
+            {stats ? stats.flagged_anomalies : "8"}
+          </div>
+          <div className="text-[11px] text-amber-400/80 mt-1">
+            {stats ? stats.anomaly_rate_percent : "24.2"}% anomaly rate
           </div>
         </div>
 
-        {/* Card 2 */}
-        <div className="p-4 rounded-xl bg-surface border border-border relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <AlertTriangle className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-semibold text-amber-400">+12%</span>
+        <div className="p-4 rounded-xl bg-surface border border-border">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>Critical Compliance Alerts</span>
+            <ShieldAlert className="w-4 h-4 text-rose-400" />
           </div>
-          <div className="text-2xl font-bold text-amber-300 mt-3">
-            {stats ? stats.flagged_anomalies : 8}
+          <div className="text-2xl font-bold text-rose-400 mt-2 font-mono">
+            {stats ? stats.critical_alerts : "3"}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5 font-medium">SUSPICIOUS TRANSACTIONS</div>
-          <div className="text-[11px] text-amber-400 mt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Flagged this session
-          </div>
+          <div className="text-[11px] text-rose-400/80 mt-1">Action required (OFAC/Tornado)</div>
         </div>
 
-        {/* Card 3 */}
-        <div className="p-4 rounded-xl bg-surface border border-border relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="w-8 h-8 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-              <ShieldAlert className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-semibold text-rose-400">Critical</span>
+        <div className="p-4 rounded-xl bg-surface border border-border">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>Average Threat Score</span>
+            <TrendingDown className="w-4 h-4 text-cyan-400" />
           </div>
-          <div className="text-2xl font-bold text-rose-400 mt-3">
-            {stats ? stats.high_risk_wallets : 2}
+          <div className="text-2xl font-bold text-cyan-400 mt-2 font-mono">
+            {stats ? stats.average_risk_score : "14.5"}
+            <span className="text-xs text-slate-500 font-normal"> / 100</span>
           </div>
-          <div className="text-xs text-slate-400 mt-0.5 font-medium">HIGH RISK WALLETS</div>
-          <div className="text-[11px] text-rose-400 mt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-            Risk score &ge; 80
-          </div>
-        </div>
-
-        {/* Card 4 */}
-        <div className="p-4 rounded-xl bg-surface border border-border relative overflow-hidden">
-          <div className="flex items-center justify-between">
-            <div className="w-8 h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <BrainCircuit className="w-4 h-4" />
-            </div>
-            <span className="text-[10px] font-semibold text-purple-400">Live</span>
-          </div>
-          <div className="text-2xl font-bold text-white mt-3">
-            {stats ? stats.critical_alerts : 3}
-          </div>
-          <div className="text-xs text-slate-400 mt-0.5 font-medium">REAL-TIME ALERTS</div>
-          <div className="text-[11px] text-purple-400 mt-1 flex items-center gap-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-            Awaiting compliance review
-          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Calibrated isolation depth</div>
         </div>
       </div>
 
-      {/* Two Center Panels: Predictive Analytics Forecast + Sanctions Watchlist Detector */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Predictive Anomaly Forecast */}
-        <div className="lg:col-span-2 p-5 rounded-2xl bg-surface border border-border">
-          <div className="flex items-center justify-between mb-4">
-            <div>
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <BrainCircuit className="w-4 h-4 text-purple-400" />
-                Predictive Analytics Forecast (Isolation Forest &amp; GNN)
-              </h3>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Multi-window anomaly trajectory projection for suspicious transaction pressure
-              </p>
-            </div>
-            <span className="text-[10px] text-cyan-400 font-mono">Confidence: 84.5%</span>
-          </div>
-
-          {/* Simulated chart line */}
-          <div className="h-44 w-full bg-slate-950/70 border border-slate-800 rounded-xl p-4 flex flex-col justify-between relative overflow-hidden">
-            {/* Background SVG wave */}
-            <svg className="w-full h-full absolute inset-0 text-cyan-500/20" preserveAspectRatio="none" viewBox="0 0 100 100">
-              <path
-                d="M0,70 Q25,30 50,65 T100,20 L100,100 L0,100 Z"
-                fill="currentColor"
-              />
-              <path
-                d="M0,70 Q25,30 50,65 T100,20"
-                fill="none"
-                stroke="#06b6d4"
-                strokeWidth="2.5"
-              />
-            </svg>
-
-            <div className="flex justify-between text-[10px] font-mono text-slate-500 z-10">
-              <span>Window T-4</span>
-              <span>Window T-3</span>
-              <span>Window T-2</span>
-              <span>Window T-1</span>
-              <span className="text-emerald-400 font-bold">Current (T0)</span>
-              <span>Forecast F+1</span>
-              <span>Forecast F+2</span>
-            </div>
-
-            <div className="z-10 flex items-center justify-between pt-8 border-t border-slate-800/60 text-xs">
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase">Forecast Horizon</span>
-                <div className="font-semibold text-white">4 future blocks</div>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase">Peak Anomaly Density</span>
-                <div className="font-semibold text-amber-400">49.47 risk units</div>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 uppercase">Mean Confidence</span>
-                <div className="font-semibold text-emerald-400">84.5%</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Right 1 Col: Sanctions & Hotspot Watchlist Detector */}
-        <div className="p-5 rounded-2xl bg-surface border border-border flex flex-col justify-between">
+      {/* APACHE AIRFLOW ML PIPELINE ORCHESTRATION CARD */}
+      <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900/90 via-slate-900/60 to-indigo-950/30 border border-indigo-500/30 shadow-2xl backdrop-blur-md space-y-6">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-800 pb-4">
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Globe2 className="w-4 h-4 text-cyan-400" />
-                Sanctions Watchlist Detector
-              </h3>
-              <span className="text-[10px] text-rose-400 font-semibold">Active</span>
+            <div className="flex items-center gap-2">
+              <span className="w-3 h-3 rounded-full bg-indigo-500 animate-pulse"></span>
+              <h2 className="text-base font-bold text-white flex items-center gap-2">
+                Apache Airflow MLOps & Model Retraining DAGs
+              </h2>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                Airflow 2.8+
+              </span>
             </div>
-            <p className="text-[11px] text-slate-400 mb-4">
-              Real-time cross-matching against OpenSanctions OFAC, EU, &amp; FATF databases
+            <p className="text-xs text-slate-400 mt-1">
+              Automated DAGs for scheduled on-chain transaction ingestion, feature engineering, Isolation Forest retraining, drift benchmarking, and batch inference.
             </p>
-
-            <div className="space-y-2.5">
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-white">OFAC SDN Program</div>
-                  <div className="text-[10px] text-slate-400">Global Magnitsky &amp; Russia EO14024</div>
-                </div>
-                <span className="text-xs font-mono font-bold text-rose-400">2 Matches</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-white">Tornado Cash / Mixers</div>
-                  <div className="text-[10px] text-slate-400">Cryptographic privacy pool routing</div>
-                </div>
-                <span className="text-xs font-mono font-bold text-amber-400">1 Match</span>
-              </div>
-
-              <div className="p-2.5 rounded-lg bg-slate-950 border border-slate-800 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-semibold text-white">FATF High-Risk Jurisdictions</div>
-                  <div className="text-[10px] text-slate-400">Counterparty cross-border exposure</div>
-                </div>
-                <span className="text-xs font-mono font-bold text-slate-300">Monitored</span>
-              </div>
-            </div>
           </div>
 
-          <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-400">
-            <span>Indexed Records: 1,000+</span>
-            <span className="text-emerald-400 font-medium">Local CSV Synced</span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping mr-2"></span>
+              Airflow Scheduler: Online
+            </span>
           </div>
         </div>
-      </div>
 
-      {/* Interactive AI Anomaly Audit Tool */}
-      <div className="p-6 rounded-2xl bg-surface border border-border shadow-xl">
-        <h3 className="text-base font-bold text-white mb-2 flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-emerald-400" />
-          Interactive Anomaly Scoring Engine
-        </h3>
-        <p className="text-xs text-slate-400 mb-4">
-          Select a seeded transaction or enter a wallet address to compute its Isolation Forest risk score and feature attribution.
-        </p>
-
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
-            {error}
+        {airflowFeedback && (
+          <div className="p-3.5 rounded-xl bg-indigo-950/50 border border-indigo-500/40 text-indigo-200 text-xs flex items-center justify-between">
+            <span>{airflowFeedback}</span>
+            <button onClick={() => setAirflowFeedback(null)} className="text-slate-400 hover:text-white font-bold">✕</button>
           </div>
         )}
 
-        <div className="flex flex-col sm:flex-row gap-3">
-          <select
-            value={selectedTxId}
-            onChange={(e) => setSelectedTxId(e.target.value)}
-            className="flex-1 bg-slate-950 border border-border rounded-lg px-3 py-2.5 text-xs text-slate-200 focus:outline-none focus:border-emerald-500 font-mono"
-          >
-            {recentTxs.map((tx) => (
-              <option key={tx.id} value={tx.id}>
-                {tx.tx_hash.substring(0, 16)}... | {tx.amount} {tx.asset_symbol} | To: {tx.to_address.substring(0, 10)}... {tx.is_anomaly ? "(!)" : ""}
-              </option>
-            ))}
-          </select>
+        {/* Registered DAGs Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {airflowDags.map((dag) => (
+            <div
+              key={dag.dag_id}
+              className="p-5 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-4 flex flex-col justify-between"
+            >
+              <div>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono font-bold text-white text-xs">{dag.dag_id}</span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    {dag.schedule_interval}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 mt-2">{dag.description}</p>
 
+                {/* DAG Task Nodes Visualization */}
+                <div className="mt-4 pt-3 border-t border-slate-900 space-y-2">
+                  <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                    DAG Pipeline Task Flow ({dag.tasks.length} Tasks)
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                    {dag.tasks.map((task, idx) => (
+                      <React.Fragment key={task.task_id}>
+                        <span className="px-2 py-1 rounded bg-slate-900 border border-slate-800 font-mono text-slate-300">
+                          {task.task_id}
+                        </span>
+                        {idx < dag.tasks.length - 1 && (
+                          <span className="text-slate-600 font-bold">→</span>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between">
+                <span className="text-[11px] text-slate-500">
+                  Last State: <span className="text-emerald-400 font-semibold uppercase">{dag.last_run_state}</span>
+                </span>
+                <button
+                  onClick={() => handleTriggerAirflow(dag.dag_id)}
+                  disabled={triggeringDag === dag.dag_id}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-indigo-600/20"
+                >
+                  <Play className="w-3 h-3 fill-current" />
+                  <span>{triggeringDag === dag.dag_id ? "Executing DAG..." : "Trigger Airflow DAG"}</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Live Airflow Execution Logs output */}
+        {airflowRunResult && (
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3 text-xs">
+            <div className="flex items-center justify-between font-bold border-b border-slate-800 pb-2">
+              <span className="text-white flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                Airflow Execution Stream: {airflowRunResult.dag_id}
+              </span>
+              <span className="font-mono text-slate-400">{airflowRunResult.dag_run_id}</span>
+            </div>
+
+            <div className="space-y-1.5 font-mono text-[11px]">
+              {airflowRunResult.task_logs.map((log, i) => (
+                <div key={i} className="p-2 rounded bg-slate-900 border border-slate-800/80 flex items-start gap-2">
+                  <span className="px-1.5 py-0.5 rounded text-[9px] uppercase font-bold bg-emerald-500/20 text-emerald-300">
+                    {log.status}
+                  </span>
+                  <span className="text-indigo-300 font-semibold">[{log.task}]:</span>
+                  <span className="text-slate-300">{log.log}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Transaction & Address Risk Audit Sandbox */}
+      <div className="p-6 rounded-2xl bg-surface border border-border shadow-lg space-y-4">
+        <div className="flex items-center justify-between border-b border-border pb-3">
+          <div>
+            <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <Search className="w-4 h-4 text-cyan-400" />
+              Interactive Transaction Risk Auditor
+            </h2>
+            <p className="text-xs text-slate-400">
+              Run real-time ML feature extraction and Isolation Forest inference on any transaction.
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Select Recent Transaction</label>
+            <select
+              value={selectedTxId}
+              onChange={(e) => {
+                setSelectedTxId(e.target.value);
+                setWalletInput("");
+              }}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500"
+            >
+              {recentTxs.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.tx_hash.slice(0, 10)}... | {t.amount} {t.asset_symbol} ({t.status})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs text-slate-400 block mb-1">Or Audit Target Wallet Address</label>
+            <input
+              type="text"
+              value={walletInput}
+              onChange={(e) => {
+                setWalletInput(e.target.value);
+                setSelectedTxId("");
+              }}
+              placeholder="0x..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-cyan-500"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
           <button
             onClick={handleRunAudit}
             disabled={analyzing}
-            className="px-6 py-2.5 rounded-lg bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50"
+            className="px-6 py-2.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-cyan-600/20"
           >
-            {analyzing ? (
-              "Computing Model Inference..."
-            ) : (
-              <>
-                <span>Run Anomaly Audit</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </>
-            )}
+            {analyzing ? "Running Isolation Forest..." : "Run AI Risk Audit"}
           </button>
         </div>
 

@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # Compliance & Sanctions
     OPENSANCTIONS_PATH: str = "../opensactions file/targets.simple.csv"
 
+    # Apache Airflow MLOps Pipeline
+    AIRFLOW_BASE_URL: str = "http://localhost:8080"
+    AIRFLOW_USERNAME: str = "admin"
+    AIRFLOW_PASSWORD: str = "admin"
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

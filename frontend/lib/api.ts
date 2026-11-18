@@ -942,3 +942,61 @@ export async function executeDAOProposal(proposal_id: string): Promise<any> {
   }
   return res.json();
 }
+
+// ----------------- APACHE AIRFLOW ML PIPELINE ORCHESTRATION -----------------
+
+export interface AirflowTaskInfo {
+  task_id: string;
+  operator: string;
+  downstream_tasks: string[];
+  description: string;
+}
+
+export interface AirflowDAGInfo {
+  dag_id: string;
+  description: string;
+  schedule_interval: string;
+  is_paused: boolean;
+  last_run_state: string;
+  last_run_timestamp?: string;
+  next_run_timestamp?: string;
+  tasks: AirflowTaskInfo[];
+  tags: string[];
+}
+
+export interface AirflowRunResponse {
+  dag_id: string;
+  dag_run_id: string;
+  state: string;
+  execution_date: string;
+  message: string;
+  task_logs: Array<{ task: string; status: string; log: string }>;
+  live_airflow_url: string;
+}
+
+export async function fetchAirflowDAGs(): Promise<AirflowDAGInfo[]> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/risk/airflow/dags`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error("Failed to load Airflow DAGs.");
+  return res.json();
+}
+
+export async function triggerAirflowDAG(dag_id: string): Promise<AirflowRunResponse> {
+  const token = getStoredToken();
+  const res = await fetch(`${API_BASE_URL}/risk/airflow/trigger`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ dag_id }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to trigger Airflow DAG.");
+  }
+  return res.json();
+}
