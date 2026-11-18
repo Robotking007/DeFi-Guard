@@ -1,7 +1,9 @@
 import os
 import json
+from pathlib import Path
 from typing import Dict, Any, List, Tuple
 import numpy as np
+import joblib
 from sklearn.ensemble import IsolationForest
 
 MODEL_VERSION = "1.0.0"
@@ -33,11 +35,18 @@ class AnomalyRiskEngine:
         self._init_baseline()
 
     def _init_baseline(self):
-        """Fit model with representative baseline normal DeFi retail distributions."""
+        """Fit or load model with representative baseline or Kaggle 10k trained artifact."""
+        artifact_path = Path(__file__).parent / "isolation_forest_kaggle.joblib"
+        if artifact_path.exists():
+            try:
+                self.model = joblib.load(artifact_path)
+                self._is_trained = True
+                return
+            except Exception:
+                pass
+
         np.random.seed(42)
         n_samples = 500
-        # Simulated normal retail distributions:
-        # value_usd ~$500-$5000, zscore ~-1 to 2, tx_count_1h ~0-2, tx_count_24h ~1-5, burst ~0-1
         val_usd = np.random.exponential(scale=1500, size=n_samples) + 100
         zscore = np.random.normal(loc=0.0, scale=1.0, size=n_samples)
         tx_1h = np.random.poisson(lam=0.5, size=n_samples)

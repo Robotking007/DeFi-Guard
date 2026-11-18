@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     WEB3AUTH_CLIENT_ID: str = ""
     WEB3AUTH_CLIENT_SECRET: str = ""
     WEB3AUTH_JWKS_ENDPOINT: str = "https://api-auth.web3auth.io/.well-known/jwks.json"
+    WEB3AUTH_NETWORK: str = "sapphire_devnet"
 
     # Web3 / Blockchain config
     EVM_CHAIN_ID: int = 11155111  # Sepolia Testnet
@@ -67,6 +68,9 @@ class Settings(BaseSettings):
     GCP_PROJECT_NAME: str = "projects/507081010383"
     GCP_PROJECT_NUMBER: str = "507081010383"
     GEMINI_APP_NAME: str = "DeFi Guard"
+
+    # Kaggle API
+    KAGGLE_API_TOKEN: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",

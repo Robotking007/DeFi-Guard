@@ -1,0 +1,36 @@
+{
+  "model_name": "DeFiGuard Kaggle Isolation Forest",
+  "dataset_records_total": 10000,
+  "dataset_records_train": 8000,
+  "dataset_records_test": 2000,
+  "features": [
+    "value_usd",
+    "value_zscore",
+    "tx_count_1h",
+    "tx_count_24h",
+    "unique_counterparties_24h",
+    "burst_count"
+  ],
+  "isolation_forest_metrics": {
+    "n_estimators": 150,
+    "contamination": 0.08,
+    "roc_auc": 1.0,
+    "precision": 1.0,
+    "recall": 0.896,
+    "f1_score": 0.9451
+  },
+  "supervised_rf_metrics": {
+    "n_estimators": 100,
+    "roc_auc": 1.0,
+    "f1_score": 1.0,
+    "feature_importances": {
+      "value_usd": 0.262,
+      "value_zscore": 0.1661,
+      "tx_count_1h": 0.0783,
+      "tx_count_24h": 0.374,
+      "unique_counterparties_24h": 0.0002,
+      "burst_count": 0.1195
+    }
+  },
+  "model_artifact_path": "D:\\Projects\\DefiGuard\\backend\\app\\risk\\isolation_forest_kaggle.joblib"
+}
