@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { Sidebar } from "@/components/Sidebar";
+import { GeminiAssistant } from "@/components/GeminiAssistant";
 
 export const metadata: Metadata = {
   title: "DeFiGuard — AI-Powered DeFi Risk & RegTech Platform",
@@ -24,6 +25,7 @@ export default function RootLayout({
             {children}
           </main>
         </div>
+        <GeminiAssistant />
       </body>
     </html>
   );

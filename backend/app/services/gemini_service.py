@@ -7,8 +7,8 @@ from app.core.config import settings
 logger = logging.getLogger("gemini_service")
 
 FALLBACK_MODELS = [
-    "gemini-flash-latest",
     "gemini-flash-lite-latest",
+    "gemini-flash-latest",
     "gemini-pro-latest",
 ]
 
@@ -17,7 +17,7 @@ class GeminiService:
 
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
-        self.preferred_model = settings.GEMINI_MODEL or "gemini-flash-latest"
+        self.preferred_model = settings.GEMINI_MODEL or "gemini-flash-lite-latest"
         self.model = self.preferred_model
         self.project_name = settings.GCP_PROJECT_NAME
         self.project_number = settings.GCP_PROJECT_NUMBER

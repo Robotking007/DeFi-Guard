@@ -1076,3 +1076,59 @@ export async function triggerAirflowDAG(dag_id: string): Promise<AirflowRunRespo
   }
   return res.json();
 }
+
+export interface IntegrationsStatusData {
+  gemini: {
+    status: string;
+    model: string;
+    project_name: string;
+    project_number: string;
+    provider: string;
+  };
+  etherscan: {
+    status: string;
+    version: string;
+    supported_chains: number[];
+  };
+  alchemy: {
+    status: string;
+    network: string;
+    rpc_configured: boolean;
+  };
+  coingecko: {
+    status: string;
+    source: string;
+    eth_usd: number;
+    btc_usd: number;
+  };
+  kaggle_ml: {
+    status: string;
+    records_trained: number;
+    model_type: string;
+    artifact_present: boolean;
+  };
+  web3auth: {
+    status: string;
+    network: string;
+    namespace: string;
+  };
+}
+
+export async function fetchIntegrationsStatus(): Promise<IntegrationsStatusData> {
+  const res = await fetch(`${API_BASE_URL}/health/integrations`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to load integrations status.");
+  return res.json();
+}
+
+export async function askGeminiAi(prompt: string): Promise<{ response: string; model: string }> {
+  const res = await fetch(`${API_BASE_URL}/health/gemini-ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "Failed to query Gemini AI.");
+  }
+  return res.json();
+}

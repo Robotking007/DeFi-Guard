@@ -36,6 +36,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -65,16 +66,17 @@ def health_check():
     )
 
 
-# Include API v1 routers
-app.include_router(health_router, prefix=settings.API_V1_PREFIX)
-app.include_router(auth_router, prefix=settings.API_V1_PREFIX)
-app.include_router(users_router, prefix=settings.API_V1_PREFIX)
-app.include_router(wallets_router, prefix=settings.API_V1_PREFIX)
-app.include_router(transactions_router, prefix=settings.API_V1_PREFIX)
-app.include_router(risk_router, prefix=settings.API_V1_PREFIX)
-app.include_router(lending_router, prefix=settings.API_V1_PREFIX)
-app.include_router(analytics_router, prefix=settings.API_V1_PREFIX)
-app.include_router(compliance_router, prefix=settings.API_V1_PREFIX)
-app.include_router(swap_router, prefix=settings.API_V1_PREFIX)
-app.include_router(security_router, prefix=settings.API_V1_PREFIX)
-app.include_router(governance_router, prefix=settings.API_V1_PREFIX)
+# Include API routers under both /api/v1 and /api for seamless frontend client compatibility
+for prefix in [settings.API_V1_PREFIX, "/api"]:
+    app.include_router(health_router, prefix=prefix)
+    app.include_router(auth_router, prefix=prefix)
+    app.include_router(users_router, prefix=prefix)
+    app.include_router(wallets_router, prefix=prefix)
+    app.include_router(transactions_router, prefix=prefix)
+    app.include_router(risk_router, prefix=prefix)
+    app.include_router(lending_router, prefix=prefix)
+    app.include_router(analytics_router, prefix=prefix)
+    app.include_router(compliance_router, prefix=prefix)
+    app.include_router(swap_router, prefix=prefix)
+    app.include_router(security_router, prefix=prefix)
+    app.include_router(governance_router, prefix=prefix)
